@@ -243,6 +243,7 @@ pub struct Symbol<'lib, T: 'lib> {
     pd: marker::PhantomData<&'lib T>,
 }
 
+#[derive(Debug)]
 pub struct RcSymbol<T> {
     inner: imp::Symbol<T>,
     _lib: Rc<RefCell<imp::Library>>,
