@@ -178,7 +178,7 @@ impl Library {
 }
 
 impl RcLibrary {
-    pub fn new<P: AsRef<OsStr>>(filename: P) -> Result<Library> {
+    pub fn new<P: AsRef<OsStr>>(filename: P) -> Result<RcLibrary> {
         imp::Library::new(filename).map(From::from)
     }
 
