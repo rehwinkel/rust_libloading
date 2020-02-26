@@ -36,24 +36,28 @@
 //!
 //! The compiler will ensure that the loaded `function` will not outlive the `Library` it comes
 //! from, preventing a common cause of undefined behaviour and memory safety problems.
+use std::cell::RefCell;
+use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fmt;
-use std::ops;
 use std::marker;
+use std::ops;
+use std::rc::Rc;
 
 #[cfg(unix)]
 use self::os::unix as imp;
 #[cfg(windows)]
 use self::os::windows as imp;
 
-pub mod os;
 pub mod changelog;
+pub mod os;
 mod util;
 
 pub type Result<T> = ::std::io::Result<T>;
 
 /// A loaded dynamic library.
 pub struct Library(imp::Library);
+pub struct RcLibrary(Rc<RefCell<imp::Library>>);
 
 impl Library {
     /// Find and load a dynamic library.
@@ -173,6 +177,34 @@ impl Library {
     }
 }
 
+impl RcLibrary {
+    pub fn new<P: AsRef<OsStr>>(filename: P) -> Result<Library> {
+        imp::Library::new(filename).map(From::from)
+    }
+
+    pub unsafe fn get<T>(&self, symbol: CString) -> Result<RcSymbol<T>> {
+        self.0
+            .borrow()
+            .get(symbol.as_bytes())
+            .map(|from| RcSymbol::from_raw(from, Rc::clone(&self.0)))
+    }
+}
+
+impl fmt::Debug for RcLibrary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<imp::Library> for RcLibrary {
+    fn from(lib: imp::Library) -> RcLibrary {
+        RcLibrary(Rc::new(RefCell::new(lib)))
+    }
+}
+
+unsafe impl Send for RcLibrary {}
+unsafe impl Sync for RcLibrary {}
+
 impl fmt::Debug for Library {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
@@ -208,7 +240,12 @@ unsafe impl Sync for Library {}
 /// [`Library::get`]: ./struct.Library.html#method.get
 pub struct Symbol<'lib, T: 'lib> {
     inner: imp::Symbol<T>,
-    pd: marker::PhantomData<&'lib T>
+    pd: marker::PhantomData<&'lib T>,
+}
+
+pub struct RcSymbol<T> {
+    inner: imp::Symbol<T>,
+    _lib: Rc<RefCell<imp::Library>>,
 }
 
 impl<'lib, T> Symbol<'lib, T> {
@@ -257,7 +294,20 @@ impl<'lib, T> Symbol<'lib, T> {
     pub unsafe fn from_raw<L>(sym: imp::Symbol<T>, _: &'lib L) -> Symbol<'lib, T> {
         Symbol {
             inner: sym,
-            pd: marker::PhantomData
+            pd: marker::PhantomData,
+        }
+    }
+}
+
+impl<T> RcSymbol<T> {
+    pub unsafe fn into_raw(self) -> imp::Symbol<T> {
+        self.inner
+    }
+
+    pub unsafe fn from_raw(sym: imp::Symbol<T>, lib: Rc<RefCell<imp::Library>>) -> RcSymbol<T> {
+        RcSymbol {
+            inner: sym,
+            _lib: lib,
         }
     }
 }
@@ -287,7 +337,7 @@ impl<'lib, T> Clone for Symbol<'lib, T> {
     fn clone(&self) -> Symbol<'lib, T> {
         Symbol {
             inner: self.inner.clone(),
-            pd: marker::PhantomData
+            pd: marker::PhantomData,
         }
     }
 }
