@@ -19,3 +19,7 @@ functions and static variables these libraries contain.
 [changelog]: https://docs.rs/libloading/*/libloading/changelog/index.html
 
 libloading is distributed under ISC (MIT-like) license.
+
+## Changes in this fork
+
+This fork adds RcLibrary and RcSymbol which are reference counted pointers to the underlying Libraries and Symbols. Lifetime specifiers can be avoided when using this fork.
