@@ -243,7 +243,6 @@ pub struct Symbol<'lib, T: 'lib> {
     pd: marker::PhantomData<&'lib T>,
 }
 
-#[derive(Debug)]
 pub struct RcSymbol<T> {
     inner: imp::Symbol<T>,
     _lib: Rc<RefCell<imp::Library>>,
@@ -359,3 +358,39 @@ impl<'lib, T> fmt::Debug for Symbol<'lib, T> {
 
 unsafe impl<'lib, T: Send> Send for Symbol<'lib, T> {}
 unsafe impl<'lib, T: Sync> Sync for Symbol<'lib, T> {}
+
+impl<T> RcSymbol<Option<T>> {
+    pub fn lift_option(self) -> Option<RcSymbol<T>> {
+        let lib = Rc::clone(&self._lib);
+        self.inner.lift_option().map(|is| RcSymbol {
+            inner: is,
+            _lib: lib,
+        })
+    }
+}
+
+impl<'lib, T> Clone for RcSymbol<T> {
+    fn clone(&self) -> RcSymbol<T> {
+        RcSymbol {
+            inner: self.inner.clone(),
+            _lib: Rc::clone(&self._lib),
+        }
+    }
+}
+
+// FIXME: implement FnOnce for callable stuff instead.
+impl<T> ops::Deref for RcSymbol<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        ops::Deref::deref(&self.inner)
+    }
+}
+
+impl<T> fmt::Debug for RcSymbol<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+unsafe impl<T: Send> Send for RcSymbol<T> {}
+unsafe impl<T: Sync> Sync for RcSymbol<T> {}
